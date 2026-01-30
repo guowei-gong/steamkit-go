@@ -20,7 +20,7 @@ type ISteamNetworkingSockets interface {
 	SendMessageToConnection(conn Connection, data []byte, flags SendFlags) error
 	FlushMessagesOnConnection(conn Connection) error
 	ReceiveMessagesOnConnection(conn Connection, maxMessages int) ([]*Message, error)
-	ReceiveMessagesOnListenSocket(socket ListenSocket, maxMessages int) ([]*Message, error)
+	ReceiveMessagesOnPollGroup(group PollGroup, maxMessages int) ([]*Message, error)
 
 	// 连接信息
 	GetConnectionInfo(conn Connection) (*ConnectionInfo, error)
@@ -60,21 +60,26 @@ func (s *steamNetworkingSockets) ConnectP2P(identity Identity, virtualPort int, 
 		return InvalidConnection, ErrInvalidIdentity
 	}
 
-	// TODO: 将 Identity 转换为 SteamNetworkingIdentity 结构体
 	// 目前仅支持 SteamID
 	if identity.Type() != IdentityTypeSteamID {
 		return InvalidConnection, fmt.Errorf("only SteamID identity is supported currently")
 	}
 
 	// 创建 SteamNetworkingIdentity 结构体
-	// 这是一个简化版本，实际需要完整的结构体定义
-	var identityStruct [136]byte // SteamNetworkingIdentity 的大小
-	steamID := identity.GetSteamID()
-	*(*uint64)(unsafe.Pointer(&identityStruct[0])) = steamID
-	*(*int32)(unsafe.Pointer(&identityStruct[128])) = 16 // k_ESteamNetworkingIdentityType_SteamID
+	// 结构体布局:
+	//   offset 0:   m_eType (int32, 4 bytes)
+	//   offset 4:   m_cbSize (int32, 4 bytes)
+	//   offset 8:   union (128 bytes, 包含 m_steamID64)
+	// 总大小: 136 bytes
+	var identityStruct [136]byte
+
+	// 使用 Steam API 辅助函数正确初始化结构体
+	identityPtr := uintptr(unsafe.Pointer(&identityStruct[0]))
+	purego.CallSteamNetworkingIdentityClear(identityPtr)
+	purego.CallSteamNetworkingIdentitySetSteamID64(identityPtr, identity.GetSteamID())
 
 	// TODO: 处理 options 参数
-	handle := purego.CallConnectP2P(s.handle, uintptr(unsafe.Pointer(&identityStruct[0])), int32(virtualPort), 0, 0)
+	handle := purego.CallConnectP2P(s.handle, identityPtr, int32(virtualPort), 0, 0)
 	if handle == 0 {
 		return InvalidConnection, ErrConnectionFailed
 	}
@@ -242,10 +247,10 @@ func (s *steamNetworkingSockets) ReceiveMessagesOnConnection(conn Connection, ma
 	return messages, nil
 }
 
-// ReceiveMessagesOnListenSocket 接收监听套接字上的消息
-func (s *steamNetworkingSockets) ReceiveMessagesOnListenSocket(socket ListenSocket, maxMessages int) ([]*Message, error) {
-	if socket == InvalidListenSocket {
-		return nil, ErrInvalidSocket
+// ReceiveMessagesOnPollGroup 接收轮询组上的消息
+func (s *steamNetworkingSockets) ReceiveMessagesOnPollGroup(group PollGroup, maxMessages int) ([]*Message, error) {
+	if group == InvalidPollGroup {
+		return nil, ErrInvalidPollGroup
 	}
 
 	if maxMessages <= 0 {
@@ -256,9 +261,9 @@ func (s *steamNetworkingSockets) ReceiveMessagesOnListenSocket(socket ListenSock
 	messagePtrs := make([]uintptr, maxMessages)
 
 	// 调用 Steam API
-	numMessages := purego.CallReceiveMessagesOnListenSocket(
+	numMessages := purego.CallReceiveMessagesOnPollGroup(
 		s.handle,
-		uint32(socket),
+		uint32(group),
 		uintptr(unsafe.Pointer(&messagePtrs[0])),
 		int32(maxMessages),
 	)

@@ -73,9 +73,13 @@ var (
 	ptrAPI_ISteamNetworkingSockets_SendMessageToConnection func(uintptr, uint32, uintptr, uint32, int32, uintptr) int32
 	ptrAPI_ISteamNetworkingSockets_FlushMessagesOnConnection func(uintptr, uint32) int32
 	ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection func(uintptr, uint32, uintptr, int32) int32
-	ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket func(uintptr, uint32, uintptr, int32) int32
+	ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnPollGroup func(uintptr, uint32, uintptr, int32) int32
 	ptrAPI_ISteamNetworkingSockets_GetConnectionRealTimeStatus func(uintptr, uint32, uintptr, int32, uintptr) int32
 	ptrAPI_SteamNetworkingMessage_t_Release func(uintptr)
+
+	// SteamNetworkingIdentity 辅助函数
+	ptrAPI_SteamNetworkingIdentity_Clear       func(uintptr)
+	ptrAPI_SteamNetworkingIdentity_SetSteamID64 func(uintptr, uint64)
 )
 
 // registerFunctions 注册所有 Steam API 函数
@@ -91,6 +95,20 @@ func registerFunctions() error {
 	purego.RegisterLibFunc(&ptrAPI_ISteamUser_GetSteamID, steamLib, "SteamAPI_ISteamUser_GetSteamID")
 
 	// ISteamNetworkingSockets
+	registerNetworkingFunctions()
+
+	return nil
+}
+
+var networkingFunctionsRegistered = false
+
+// registerNetworkingFunctions 注册 ISteamNetworkingSockets 相关函数
+func registerNetworkingFunctions() {
+	if networkingFunctionsRegistered {
+		return
+	}
+	networkingFunctionsRegistered = true
+
 	purego.RegisterLibFunc(&ptrAPI_SteamNetworkingSockets, steamLib, "SteamAPI_SteamNetworkingSockets_SteamAPI_v012")
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_CreateListenSocketP2P, steamLib, "SteamAPI_ISteamNetworkingSockets_CreateListenSocketP2P")
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_ConnectP2P, steamLib, "SteamAPI_ISteamNetworkingSockets_ConnectP2P")
@@ -101,11 +119,13 @@ func registerFunctions() error {
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_SendMessageToConnection, steamLib, "SteamAPI_ISteamNetworkingSockets_SendMessageToConnection")
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_FlushMessagesOnConnection, steamLib, "SteamAPI_ISteamNetworkingSockets_FlushMessagesOnConnection")
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection, steamLib, "SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection")
-	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket, steamLib, "SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket")
+	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnPollGroup, steamLib, "SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnPollGroup")
 	purego.RegisterLibFunc(&ptrAPI_ISteamNetworkingSockets_GetConnectionRealTimeStatus, steamLib, "SteamAPI_ISteamNetworkingSockets_GetConnectionRealTimeStatus")
 	purego.RegisterLibFunc(&ptrAPI_SteamNetworkingMessage_t_Release, steamLib, "SteamAPI_SteamNetworkingMessage_t_Release")
 
-	return nil
+	// SteamNetworkingIdentity 辅助函数
+	purego.RegisterLibFunc(&ptrAPI_SteamNetworkingIdentity_Clear, steamLib, "SteamAPI_SteamNetworkingIdentity_Clear")
+	purego.RegisterLibFunc(&ptrAPI_SteamNetworkingIdentity_SetSteamID64, steamLib, "SteamAPI_SteamNetworkingIdentity_SetSteamID64")
 }
 
 // CallRestartAppIfNecessary 调用 SteamAPI_RestartAppIfNecessary
@@ -189,9 +209,9 @@ func CallReceiveMessagesOnConnection(handle uintptr, conn uint32, messages uintp
 	return ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection(handle, conn, messages, maxMessages)
 }
 
-// CallReceiveMessagesOnListenSocket 接收监听套接字上的消息
-func CallReceiveMessagesOnListenSocket(handle uintptr, socket uint32, messages uintptr, maxMessages int32) int32 {
-	return ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket(handle, socket, messages, maxMessages)
+// CallReceiveMessagesOnPollGroup 接收轮询组上的消息
+func CallReceiveMessagesOnPollGroup(handle uintptr, group uint32, messages uintptr, maxMessages int32) int32 {
+	return ptrAPI_ISteamNetworkingSockets_ReceiveMessagesOnPollGroup(handle, group, messages, maxMessages)
 }
 
 // CallReleaseMessage 释放消息内存
@@ -202,4 +222,14 @@ func CallReleaseMessage(messagePtr uintptr) {
 // CallGetConnectionRealTimeStatus 获取连接的实时状态
 func CallGetConnectionRealTimeStatus(handle uintptr, conn uint32, status uintptr, numLanes int32, lanes uintptr) int32 {
 	return ptrAPI_ISteamNetworkingSockets_GetConnectionRealTimeStatus(handle, conn, status, numLanes, lanes)
+}
+
+// CallSteamNetworkingIdentityClear 清除/初始化 SteamNetworkingIdentity 结构体
+func CallSteamNetworkingIdentityClear(identity uintptr) {
+	ptrAPI_SteamNetworkingIdentity_Clear(identity)
+}
+
+// CallSteamNetworkingIdentitySetSteamID64 设置 SteamNetworkingIdentity 的 SteamID
+func CallSteamNetworkingIdentitySetSteamID64(identity uintptr, steamID uint64) {
+	ptrAPI_SteamNetworkingIdentity_SetSteamID64(identity, steamID)
 }

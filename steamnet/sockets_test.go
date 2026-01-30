@@ -16,7 +16,7 @@ type MockSockets struct {
 	SendMessageToConnectionFunc func(Connection, []byte, SendFlags) error
 	FlushMessagesOnConnectionFunc func(Connection) error
 	ReceiveMessagesOnConnectionFunc func(Connection, int) ([]*Message, error)
-	ReceiveMessagesOnListenSocketFunc func(ListenSocket, int) ([]*Message, error)
+	ReceiveMessagesOnPollGroupFunc func(PollGroup, int) ([]*Message, error)
 }
 
 func (m *MockSockets) CreateListenSocketP2P(virtualPort int, options []ConfigValue) (ListenSocket, error) {
@@ -82,9 +82,9 @@ func (m *MockSockets) ReceiveMessagesOnConnection(conn Connection, maxMessages i
 	return []*Message{}, nil
 }
 
-func (m *MockSockets) ReceiveMessagesOnListenSocket(socket ListenSocket, maxMessages int) ([]*Message, error) {
-	if m.ReceiveMessagesOnListenSocketFunc != nil {
-		return m.ReceiveMessagesOnListenSocketFunc(socket, maxMessages)
+func (m *MockSockets) ReceiveMessagesOnPollGroup(group PollGroup, maxMessages int) ([]*Message, error) {
+	if m.ReceiveMessagesOnPollGroupFunc != nil {
+		return m.ReceiveMessagesOnPollGroupFunc(group, maxMessages)
 	}
 	return []*Message{}, nil
 }
